@@ -344,12 +344,18 @@
             <button class="btn btn-main" onclick="createNewCharacter()">Новый персонаж</button>
         </div>
     </div>
-    <script>
-        let characters = [];
-        let currentCharId = null;
-        let isEditing = true;
-        let isRolling = false;
-        const inputs = {
+<script>
+    let characters = [];
+    let currentCharId = null;
+    let isEditing = true;
+    let isRolling = false;
+
+    // Инициализация переменных для полей ввода
+    let inputs, attrSelects, toggleBtn, diceSection, die1, die2, sidebar, overlay, charListEl;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Назначаем элементы только после полной загрузки документа
+        inputs = {
             name: document.getElementById('char-name'),
             concept: document.getElementById('char-concept'),
             desc: document.getElementById('char-desc'),
@@ -357,178 +363,225 @@
             ment: document.getElementById('attr-ment'),
             soc: document.getElementById('attr-soc')
         };
-        const attrSelects = [inputs.phys, inputs.ment, inputs.soc];
-        const toggleBtn = document.getElementById('toggle-state-btn');
-        const diceSection = document.getElementById('dice-section');
-        const die1 = document.getElementById('die1');
-        const die2 = document.getElementById('die2');
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('overlay');
-        const charListEl = document.getElementById('char-list');
-        window.onload = () => {
-            loadData();
-            if (characters.length === 0) {
-                createNewCharacter();
-            } else {
-			loadCharacter(characters[0].id);
+        attrSelects = [inputs.phys, inputs.ment, inputs.soc];
+        toggleBtn = document.getElementById('toggle-state-btn');
+        diceSection = document.getElementById('dice-section');
+        die1 = document.getElementById('die1');
+        die2 = document.getElementById('die2');
+        sidebar = document.getElementById('sidebar');
+        overlay = document.getElementById('overlay');
+        charListEl = document.getElementById('char-list');
+
+        // Загрузка данных
+        loadData();
+        if (characters.length === 0) {
+            createNewCharacter();
+        } else {
+            loadCharacter(characters[0].id);
+        }
+        
+        // Слушатели для логики селектов (исключение одинаковых атрибутов)
+        attrSelects.forEach(select => {
+            select.addEventListener('change', updateSelectsOptions);
+        });
+
+        // АВТОСОХРАНЕНИЕ: при любом изменении текста или селекта
+        const formElements = [inputs.name, inputs.concept, inputs.desc, ...attrSelects];
+        formElements.forEach(el => {
+            el.addEventListener('input', () => {
+                if (isEditing) {
+                    saveCurrentForm();
+                }
+            });
+        });
+    });
+
+    function loadData() {
+        try {
+            const data = localStorage.getItem('ttrpg_characters');
+            if (data) {
+                const parsed = JSON.parse(data);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    characters = parsed;
+                }
             }
-            attrSelects.forEach(select => {
-                select.addEventListener('change', updateSelectsOptions);
-            });
-        };
-        function loadData() {
-            const data = localStorage.getItem('ttrpg*characters');
-            if (data) characters = JSON.parse(data);
+        } catch (e) {
+            console.error("Ошибка чтения данных из localStorage", e);
+            characters = [];
         }
-        function saveData() {
+    }
+
+    function saveData() {
+        try {
             localStorage.setItem('ttrpg_characters', JSON.stringify(characters));
+        } catch (e) {
+            console.error("Ошибка сохранения данных (возможно, приватный режим)", e);
         }
-        function updateSelectsOptions() {
-            const selectedValues = attrSelects.map(s => s.value).filter(v => v !== "");
-            attrSelects.forEach(select => {
-                Array.from(select.options).forEach(option => {
-                    if (option.value === "") return;
-                    if (selectedValues.includes(option.value) && select.value !== option.value) {
-                        option.disabled = true;
-                        option.style.display = 'none';
-                    } else {
-                        option.disabled = false;
-                        option.style.display = '';
-                    }
-                });
+    }
+
+    function updateSelectsOptions() {
+        const selectedValues = attrSelects.map(s => s.value).filter(v => v !== "");
+        attrSelects.forEach(select => {
+            Array.from(select.options).forEach(option => {
+                if (option.value === "") return;
+                if (selectedValues.includes(option.value) && select.value !== option.value) {
+                    option.disabled = true;
+                    option.style.display = 'none';
+                } else {
+                    option.disabled = false;
+                    option.style.display = '';
+                }
             });
-        }
-        function createNewCharacter() {
-            const newChar = {
-                id: Date.now().toString(),
-                name: '', concept: '', desc: '', phys: '', ment: '', soc: ''
-            };
-            characters.push(newChar);
-            currentCharId = newChar.id;
-            isEditing = true;
-            fillForm(newChar);
+        });
+    }
+
+    function createNewCharacter() {
+        const newChar = {
+            id: Date.now().toString(),
+            name: '', concept: '', desc: '', phys: '', ment: '', soc: ''
+        };
+        characters.push(newChar);
+        currentCharId = newChar.id;
+        isEditing = true;
+        
+        fillForm(newChar);
+        updateUIState();
+        saveData();
+        renderCharList();
+        toggleSidebar(false);
+    }
+
+    function loadCharacter(id) {
+        const char = characters.find(c => c.id === id);
+        if (char) {
+            currentCharId = id;
+            isEditing = false;
+            fillForm(char);
             updateUIState();
-            saveData();
             renderCharList();
             toggleSidebar(false);
         }
-        function loadCharacter(id) {
-            const char = characters.find(c => c.id === id);
-            if (char) {
-                currentCharId = id;
-                isEditing = false;
-                fillForm(char);
-                updateUIState();
-                renderCharList();
-                toggleSidebar(false);
-            }
+    }
+
+    function deleteCharacter(id, event) {
+        event.stopPropagation();
+        if (confirm('Удалить этого персонажа?')) {
+            characters = characters.filter(c => c.id !== id);
+            saveData();
+            if (characters.length === 0) createNewCharacter();
+            else if (currentCharId === id) loadCharacter(characters[0].id);
+            else renderCharList();
         }
-        function deleteCharacter(id, event) {
-            event.stopPropagation();
-            if (confirm('Удалить этого персонажа?')) {
-                characters = characters.filter(c => c.id !== id);
-                saveData();
-                if (characters.length === 0) createNewCharacter();
-                else if (currentCharId === id) loadCharacter(characters[0].id);
-                else renderCharList();
-            }
+    }
+
+    function fillForm(char) {
+        inputs.name.value = char.name || '';
+        inputs.concept.value = char.concept || '';
+        inputs.desc.value = char.desc || '';
+        inputs.phys.value = char.phys || '';
+        inputs.ment.value = char.ment || '';
+        inputs.soc.value = char.soc || '';
+        updateSelectsOptions();
+    }
+
+    function saveCurrentForm() {
+        const char = characters.find(c => c.id === currentCharId);
+        if (char) {
+            char.name = inputs.name.value; // Без 'Безымянный' в поле ввода, чтобы не мешало печатать
+            char.concept = inputs.concept.value;
+            char.desc = inputs.desc.value;
+            char.phys = inputs.phys.value;
+            char.ment = inputs.ment.value;
+            char.soc = inputs.soc.value;
+            saveData();
+            renderCharList();
         }
-        function fillForm(char) {
-            inputs.name.value = char.name;
-            inputs.concept.value = char.concept;
-            inputs.desc.value = char.desc;
-            inputs.phys.value = char.phys;
-            inputs.ment.value = char.ment;
-            inputs.soc.value = char.soc;
-            updateSelectsOptions();
+    }
+
+    function toggleEditState() {
+        if (isEditing) {
+            saveCurrentForm();
+            isEditing = false;
+        } else {
+            isEditing = true;
         }
-        function saveCurrentForm() {
-            const char = characters.find(c => c.id === currentCharId);
-            if (char) {
-                char.name = inputs.name.value || 'Безымянный';
-                char.concept = inputs.concept.value;
-                char.desc = inputs.desc.value;
-                char.phys = inputs.phys.value;
-                char.ment = inputs.ment.value;
-                char.soc = inputs.soc.value;
-                saveData();
-                renderCharList();
-            }
+        updateUIState();
+    }
+
+    function updateUIState() {
+        const formElements = [inputs.name, inputs.concept, inputs.desc, ...attrSelects];
+        if (isEditing) {
+            formElements.forEach(el => el.disabled = false);
+            toggleBtn.textContent = 'Сохранить';
+            diceSection.style.display = 'none';
+        } else {
+            formElements.forEach(el => el.disabled = true);
+            toggleBtn.textContent = 'Изменить';
+            diceSection.style.display = 'block';
         }
-        function toggleEditState() {
-            if (isEditing) {
-                saveCurrentForm();
-                isEditing = false;
-            } else {
-                isEditing = true;
-            }
-            updateUIState();
-        }
-        function updateUIState() {
-            const formElements = [inputs.name, inputs.concept, inputs.desc, ...attrSelects];
-            if (isEditing) {
-                formElements.forEach(el => el.disabled = false);
-                toggleBtn.textContent = 'Сохранить';
-                diceSection.style.display = 'none';
-            } else {
-                formElements.forEach(el => el.disabled = true);
-                toggleBtn.textContent = 'Изменить';
-                diceSection.style.display = 'block';
-				}
-        }
-        function rollDice() {
-            if (isRolling) return;
-            isRolling = true;
-            // Добавляем класс анимации вращения
-            die1.classList.add('spinning');
-            die2.classList.add('spinning');
-            let rolls = 0;
-            const maxRolls = 15;
-            const intervalTime = 60;
-            const rollInterval = setInterval(() => {
+    }
+
+    function rollDice() {
+        if (isRolling) return;
+        isRolling = true;
+        
+        die1.classList.add('spinning');
+        die2.classList.add('spinning');
+        
+        let rolls = 0;
+        const maxRolls = 15;
+        const intervalTime = 60;
+
+        const rollInterval = setInterval(() => {
+            die1.textContent = Math.floor(Math.random() * 6) + 1;
+            die2.textContent = Math.floor(Math.random() * 6) + 1;
+            rolls++;
+
+            if (rolls >= maxRolls) {
+                clearInterval(rollInterval);
+                die1.classList.remove('spinning');
+                die2.classList.remove('spinning');
+                
                 die1.textContent = Math.floor(Math.random() * 6) + 1;
                 die2.textContent = Math.floor(Math.random() * 6) + 1;
-                rolls++;
-                if (rolls >= maxRolls) {
-                    clearInterval(rollInterval);
-                    // Убираем вращение и фиксируем результат
-                    die1.classList.remove('spinning');
-                    die2.classList.remove('spinning');
-                    die1.textContent = Math.floor(Math.random() * 6) + 1;
-                    die2.textContent = Math.floor(Math.random() * 6) + 1;
-                    isRolling = false;
-                }
-            }, intervalTime);
-        }
-        function toggleSidebar(forceState) {
-            const isOpen = sidebar.classList.contains('open');
-            if (forceState === true || (forceState === undefined && !isOpen)) {
-                sidebar.classList.add('open');
-                overlay.classList.add('open');
-            } else {
-                sidebar.classList.remove('open');
-                overlay.classList.remove('open');
+                isRolling = false;
             }
+        }, intervalTime);
+    }
+
+    function toggleSidebar(forceState) {
+        const isOpen = sidebar.classList.contains('open');
+        if (forceState === true || (forceState === undefined && !isOpen)) {
+            sidebar.classList.add('open');
+            overlay.classList.add('open');
+        } else {
+            sidebar.classList.remove('open');
+            overlay.classList.remove('open');
         }
-        function renderCharList() {
-            charListEl.innerHTML = '';
-            characters.forEach(char => {
-                const item = document.createElement('div');
-                item.className = `char-item ${char.id === currentCharId ? 'active' : ''}`;
-                item.onclick = () => loadCharacter(char.id);
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'char-name';
-                nameSpan.textContent = char.name || 'Безымянный';
-                const delBtn = document.createElement('button');
-                delBtn.className = 'delete-btn';
-                delBtn.textContent = '✕';
-                delBtn.onclick = (e) => deleteCharacter(char.id, e);
-                item.appendChild(nameSpan);
-                item.appendChild(delBtn);
-                charListEl.appendChild(item);
-            });
-        }
-    </script>
+    }
+
+    function renderCharList() {
+        charListEl.innerHTML = '';
+        characters.forEach(char => {
+            const item = document.createElement('div');
+            item.className = `char-item ${char.id === currentCharId ? 'active' : ''}`;
+            item.onclick = () => loadCharacter(char.id);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'char-name';
+            nameSpan.textContent = char.name || 'Безымянный';
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'delete-btn';
+            delBtn.textContent = '✕';
+            delBtn.onclick = (e) => deleteCharacter(char.id, e);
+
+            item.appendChild(nameSpan);
+            item.appendChild(delBtn);
+            charListEl.appendChild(item);
+        });
+    }
+</script>
 </body>
 </html>
 
