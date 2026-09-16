@@ -267,6 +267,24 @@
 		#overlay.open {
             display: block;
         }
+        /* Новые стили для описания бросков */
+        .roll-results-desc {
+            border-radius: 6px;
+            padding: 0px 0px;
+            margin: 0 auto 20px auto;
+            width: max-content;
+            font-size: 0.9rem;
+            /* Добавляем Flexbox для выстраивания в строку */
+            display: flex;
+            gap: 15px; /* Расстояние между результатами */
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        /* Новый класс для белых жирных цифр */
+        .roll-num { 
+            color: var(--primary-color); 
+            font-weight: bold; 
+        }
     </style>
 </head>
 <body>
@@ -317,11 +335,17 @@
                 </select>
             </div>
         </div>
-        <!-- Блок с кубиками теперь находится перед кнопкой Сохранить/Изменить -->
+        <!-- Блок с кубиками  -->
         <div id="dice-section">
             <div class="dice-container">
                 <div class="die" id="die1">1</div>
                 <div class="die" id="die2">1</div>
+            </div>
+            <!-- Описание результатов броска -->
+            <div class="roll-results-desc">
+                <span><span class="roll-num">10+</span> Успех</span>
+                <span><span class="roll-num">7-9</span> Успех с ценой</span>
+                <span><span class="roll-num">2-6</span> Провал</span>
             </div>
             <div class="btn-container">
                 <button class="btn btn-main" onclick="rollDice()">Бросок кубиков</button>
